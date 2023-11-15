@@ -1,0 +1,207 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © clinton_dews
+
+//@version=5
+indicator("Pullback + EMA + Engulfing " , shorttitle="Pullback" ,overlay=true )
+
+//--------------Constants--------------//
+
+CC_Len = 14 // ta.ema depth for bodyAvg
+// CC_ShadowPercent = 5.0 // size of shadows
+// CC_ShadowEqualsPercent = 100.0
+// CC_DojiBodyPercent = 5.0
+// CC_Factor = 2.0 // shows the number of times the shadow dominates the candlestick body
+
+//--------------Inputs--------------//
+
+//global inputs
+var g_global = "Global Settings"
+useTrend = input.bool(title = "Use Trend for signal" , defval = true, group = g_global , tooltip = "use EMA / SMA trend for signal")
+useSuperTrend = input.bool(title = "Use SuperTrend for signal" , defval = false , group = g_global)
+var trendRule0 = "EMA"
+var trendRule1 = "SMA50"
+var trendRule2 = "SMA50, SMA200"
+var trendRule = input.string(trendRule0, "Detect Trend Based On", options=[trendRule0, trendRule1, trendRule2, "No detection"])
+usefullbodytrend = input.bool(title = "Whole body for trend" , tooltip = "check if whole body is below/above the trend line" , defval = true , group = g_global)
+useEng = input.bool(title = "Use Engulfing candles" , defval = true , group = g_global)
+useThreeCandles = input.bool(title = "Use 3 candles  pullback" , defval = false , group = g_global , tooltip = "3 candles will be considered when checking pullbacks")
+
+
+
+//EMA inputs
+var g_ema    = "EMA Filter"
+showEMA = input.bool(title="Show EMA", defval=true, group=g_ema)
+emaSrc = input(close, title="Source", group=g_ema)
+emaLength    = input.int(title="EMA Length", defval=50, tooltip="Length of the EMA filter", group=g_ema)
+offset = input.int(title="Offset", defval=0, minval=-500, maxval=500, group=g_ema)
+emaPlot = ta.ema(emaSrc, emaLength)
+
+//Engulfing inputs
+var g_eng = "Engulfing Candle settings"
+showEngulfing = input.bool(title = "Show Engulfing candles", defval = false , group = g_eng)
+onlyPerfectEng = input.bool(title = "Only perfect engulfing candles", defval = false , group = g_eng)
+useBodySize = input.bool(title = "Use Body Size" , tooltip = "Consider average body size to identify the Engulfing candles", defval = false , group = g_eng)
+useEngTrend = input.bool(title = "Use Trend" , tooltip = "Consider trend to identify the Engulfing candles", defval = false , group = g_eng)
+C_Len = input.int(title = "EMA Length (for body avg)" , defval = 14 , tooltip = "EMA depth for body Average" , group =g_eng)
+// C_ShadowPercent = input.float(title = "Size of shadows" , defval = 5.0 , tooltip = "" , group =g_eng)
+// C_ShadowEqualsPercent = input.float(title = "ShadowEqualsPercent" , defval = 100.0 , tooltip = "" , group =g_eng)
+// C_DojiBodyPercent = input.float(title = "DojiBodyPercent" , defval = 5.0 , tooltip = "" , group =g_eng)
+// C_Factor = input.float(title = "Factor" , defval = 2.0 , tooltip = "shows the number of times the shadow dominates the candlestick body" , group =g_eng)
+
+//Super Trend Inputs
+var g_super = "Super Trend"
+showSuperTrend = input.bool(title = "Show SuperTrend" , defval = false , group = g_super)
+atrPeriod = input.int(20,    "ATR Length", minval = 1 , group = g_super)
+factor =    input.float(2.5, "Factor",     minval = 0.01, step = 0.01 , group = g_super)
+
+//Swing inputs
+var g_swing = "Swings"
+useSwing = input.bool(title="Use Swing Low/High", defval=false
+     , tooltip="swing high/low filter check if previous candle / current candle low = lower low of last 6 candles (swing low)", group=g_swing)
+lookbackCandles = input.int(title = "LookBack candle count" , defval = 6 , tooltip = "Number of candles to look back when checking lower lows" , group =g_swing)
+
+
+//--------------Polttings--------------//
+//Plot EMA
+plot(showEMA ? emaPlot : na , title="EMA", color=color.blue, offset=offset)
+
+
+
+//--------------Swing Check--------------//
+//swing high/low filter check if previous candle / current candle low = lower low of last 6 candles (swing low)
+swingHigh = high == ta.highest(high,lookbackCandles) or high[1] == ta.highest(high,lookbackCandles) or not useSwing
+swingLow = low == ta.lowest(low,lookbackCandles) or low[1] ==ta.lowest(low,lookbackCandles) or not useSwing
+
+
+GreenBody_row = open < close and open[1] < close[1] and (open[2] < close[2] or not useThreeCandles)
+RedBody_row = open > close and open[1] > close[1] and (open[2] > close[2] or not useThreeCandles)
+
+//--------------PullBack Check for long--------------//
+pullBackBl =  ((close[3] < close[4]) or not useThreeCandles) and (close[2] < close[3])
+     and (close[1] < close[2]) and (close > close[1]) and RedBody_row[1]
+
+
+
+//--------------PullBack Check for short --------------//
+pullBackBr =  ((close[3] > close[4]) or not useThreeCandles) and (close[2] > close[3])
+     and (close[1] > close[2]) and (close < close[1]) and GreenBody_row[1]
+     
+// if pullBackBl
+// 	label.new(bar_index, low , text="pDown", style=label.style_label_up, color = color.aqua, textcolor=color.white)
+
+// if pullBackBr
+// 	label.new(bar_index, high , text="pUp", style=label.style_label_down, color = color.red, textcolor=color.white)
+
+
+//--------------Trend & Engulfing candle--------------//
+
+C_DownTrend = true
+C_UpTrend = true
+// var trendRule0 = "EMA"
+// var trendRule1 = "SMA50"
+// var trendRule2 = "SMA50, SMA200"
+// var trendRule = input.string(trendRule0, "Detect Trend Based On", options=[trendRule0, trendRule1, trendRule2, "No detection"])
+
+ema = ta.ema(emaSrc, emaLength)
+if trendRule == trendRule0
+     // ema = ta.ema(close, emaLength)
+	C_DownTrend := close < ema and (open <= ema or not usefullbodytrend)
+	C_UpTrend := close > ema and (open >= ema or not usefullbodytrend)
+
+if trendRule == trendRule1
+	priceAvg = ta.sma(close, 50)
+	C_DownTrend := close < priceAvg
+	C_UpTrend := close > priceAvg
+
+if trendRule == trendRule2
+	sma200 = ta.sma(close, 200)
+	sma50 = ta.sma(close, 50)
+	C_DownTrend := close < sma50 and sma50 < sma200
+	C_UpTrend := close > sma50 and sma50 > sma200
+// C_Len = 14 // ta.ema depth for bodyAvg
+C_ShadowPercent = 5.0 // size of shadows
+C_ShadowEqualsPercent = 100.0
+C_DojiBodyPercent = 5.0
+C_Factor = 2.0 // shows the number of times the shadow dominates the candlestick body
+
+C_BodyHi = math.max(close, open)
+C_BodyLo = math.min(close, open)
+C_Body = C_BodyHi - C_BodyLo
+C_BodyAvg = ta.ema(C_Body, C_Len)
+C_SmallBody = C_Body < C_BodyAvg
+C_LongBody = C_Body > C_BodyAvg
+C_UpShadow = high - C_BodyHi
+C_DnShadow = C_BodyLo - low
+C_HasUpShadow = C_UpShadow > C_ShadowPercent / 100 * C_Body
+C_HasDnShadow = C_DnShadow > C_ShadowPercent / 100 * C_Body
+C_WhiteBody = open < close
+C_BlackBody = open > close
+C_Range = high-low
+C_IsInsideBar = C_BodyHi[1] > C_BodyHi and C_BodyLo[1] < C_BodyLo
+C_BodyMiddle = C_Body / 2 + C_BodyLo
+C_ShadowEquals = C_UpShadow == C_DnShadow or (math.abs(C_UpShadow - C_DnShadow) / C_DnShadow * 100) < C_ShadowEqualsPercent and (math.abs(C_DnShadow - C_UpShadow) / C_UpShadow * 100) < C_ShadowEqualsPercent
+C_IsDojiBody = C_Range > 0 and C_Body <= C_Range * C_DojiBodyPercent / 100
+C_Doji = C_IsDojiBody and C_ShadowEquals
+
+patternLabelPosLow = low - (ta.atr(30) * 0.6)
+patternLabelPosHigh = high + (ta.atr(30) * 0.6)
+
+// label_color_bullish = input(color.blue, "Label Color Bullish")
+C_EngulfingBullishNumberOfCandles = 2
+C_EngulfingBullish = (C_UpTrend or not useEngTrend) and C_WhiteBody and C_BlackBody[1] and ((C_LongBody and C_SmallBody[1]) or not useBodySize) and close >= open[1] and open <= close[1] and ( close > open[1] or open < close[1] ) and (low < low[1] or not onlyPerfectEng)
+// alertcondition(C_EngulfingBullish, title = "New pattern detected", message = "New Engulfing – Bullish pattern detected")
+if C_EngulfingBullish and showEngulfing
+    var ttBullishEngulfing = "Engulfing\nAt the end of a given downward trend, there will most likely be a reversal pattern. To distinguish the first day, this candlestick pattern uses a small body, followed by a day where the candle body fully overtakes the body from the day before, and closes in the trend’s opposite direction. Although similar to the outside reversal chart pattern, it is not essential for this pattern to completely overtake the range (high to low), rather only the open and the close."
+    label.new(bar_index, patternLabelPosLow, text="BLE", style=label.style_label_up, color = color.blue, textcolor=color.white, tooltip = ttBullishEngulfing)
+bgcolor(ta.highest(C_EngulfingBullish?1:0, C_EngulfingBullishNumberOfCandles)!=0 and showEngulfing ? color.new(color.blue, 90) : na, offset=-(C_EngulfingBullishNumberOfCandles-1))
+
+
+
+// label_color_bearish = input(color.blue, "Label Color Bearish")
+C_EngulfingBearishNumberOfCandles = 2
+C_EngulfingBearish = (C_DownTrend or not useEngTrend) and C_WhiteBody[1] and C_BlackBody and ((C_LongBody and C_SmallBody[1]) or not useBodySize) and close <= open[1] and open >= close[1] and ( close < open[1] or open > close[1] ) and (high > high[1] or not onlyPerfectEng)
+// alertcondition(C_EngulfingBearish, title = "New pattern detected", message = "New Engulfing – Bearish pattern detected")
+if C_EngulfingBearish and showEngulfing
+    var ttBearishEngulfing = "Engulfing\nAt the end of a given downward trend, there will most likely be a reversal pattern. To distinguish the first day, this candlestick pattern uses a small body, followed by a day where the candle body fully overtakes the body from the day before, and closes in the trend’s opposite direction. Although similar to the outside reversal chart pattern, it is not essential for this pattern to completely overtake the range (high to low), rather only the open and the close."
+    label.new(bar_index, patternLabelPosHigh, text="BRE", style=label.style_label_down, color = color.maroon, textcolor=color.white, tooltip = ttBearishEngulfing)
+bgcolor(ta.highest(C_EngulfingBearish?1:0, C_EngulfingBearishNumberOfCandles)!=0 and showEngulfing ? color.new(color.maroon, 90) : na, offset=-(C_EngulfingBearishNumberOfCandles-1))
+
+
+
+//------------ super trend -------------//
+
+[supertrend, direction] = ta.supertrend(factor, atrPeriod)
+
+supertrend := barstate.isfirst ? na : supertrend
+upTrend =    plot(direction < 0 and showSuperTrend ? supertrend : na, "Up Trend",   color = color.green, style = plot.style_linebr)
+downTrend =  plot(direction < 0 or not showSuperTrend ? na : supertrend, "Down Trend", color = color.red,   style = plot.style_linebr)
+bodyMiddle = plot(barstate.isfirst ? na : (open + close) / 2, "Body Middle",display = display.none)
+
+fill(bodyMiddle, upTrend,   color.new(color.green, 90), fillgaps = false)
+fill(bodyMiddle, downTrend, color.new(color.red,   90), fillgaps = false)
+
+superTUp = direction < 0
+superTDown = direction >= 0
+
+//------------ detect and interpert long entry -------------//
+
+longEntry = pullBackBl and (C_UpTrend or not useTrend) and swingLow and (C_EngulfingBullish or not useEng) and (superTUp or not useSuperTrend)
+     
+// Plot our candle patterns
+// plotshape(longEntry, style=shape.xcross,size=size.tiny, color=color.green, text="PB",location=location.belowbar)
+
+plotshape(longEntry, style=shape.labelup, color=color.teal , location=location.belowbar, size=size.tiny, title="Long Label", text= "Buy", textcolor=color.white)
+// label.new(longEntry , "Buy" , color=color.teal , textcolor=color.white, style=label.style_label_up,
+//          size=labelSizeOption)
+alertcondition(longEntry, "Pullback Candle ", "Bullish Pullback Candle  detected for {{ticker}}")
+barcolor(longEntry ? color.rgb(166, 255, 0) :na)
+
+//------------ detect and interpert short entry -------------//
+
+shortEntry = pullBackBr and (C_DownTrend or not useTrend) and swingHigh and (C_EngulfingBearish or not useEng) and (superTDown or not useSuperTrend)
+     
+plotshape(shortEntry, style=shape.labeldown, color=color.rgb(255, 79, 120) , location=location.abovebar, size=size.tiny, title="Short Label", text= "Sell", textcolor=color.white)
+
+alertcondition(shortEntry, "PullBack Candle ", "Bearish PullBack Candle  detected for {{ticker}}")
+barcolor(shortEntry ? color.rgb(255, 100, 177) :na)
+
